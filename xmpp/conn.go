@@ -13,42 +13,9 @@ import (
 	"os"
 )
 
-const (
-	NSStream = "http://etherx.jabber.org/streams"
-	NSTLS    = "urn:ietf:params:xml:ns:xmpp-tls"
-	NSSASL   = "urn:ietf:params:xml:ns:xmpp-sasl"
-	NSBind   = "urn:ietf:params:xml:ns:xmpp-bind"
-	NSClient = "jabber:client"
-)
-
 var debug io.Writer = os.Stdout
 
-type message struct {
-	XMLName xml.Name `xml:"jabber:client message"`
-	From    string   `xml:"from,attr"`
-	ID      string   `xml:"id,attr"`
-	To      string   `xml:"to,attr"`
-	Type    string   `xml:"type,attr"`
-	Subject string   `xml:"subject"`
-	Body    string   `xml:"body"`
-	Thread  string   `xml:"thread"`
-}
-
-type iq struct {
-	XMLName xml.Name `xml:"jabber:client iq"`
-	ID      string   `xml:"id,attr"`
-	Type    string   `xml:"type,attr"`
-	Bind    xml.Name `xml:"urn:ietf:params:xml:ns:xmpp-bind bind"`
-}
-
-type presence struct {
-	XMLName xml.Name `xml:"jabber:client presence"`
-	From    string   `xml:"from,attr"`
-	To      string   `xml:"to,attr"`
-}
-
-
-type Conn struct {
+type conn struct {
 	conn   net.Conn
 	p      *xml.Decoder
 	e      *xml.Encoder
@@ -56,10 +23,13 @@ type Conn struct {
 	msg    interface{}
 	secure bool
 	sasl   bool
-	logger *log.Logger
 }
 
-func (c *Conn) openStream(tc *tls.Config) error {
+func newConn(c net.Conn) *conn {
+	return &conn{conn: c, p: xml.NewDecoder(c)}
+}
+
+func (c *conn) openStream(tc *tls.Config) error {
 	c.sendFeatures()
 	if err := c.starttls(tc); err != nil {
 		return err
@@ -81,19 +51,19 @@ func (c *Conn) openStream(tc *tls.Config) error {
 	return nil
 }
 
-func (c *Conn) sendFeatures() {
+func (c *conn) sendFeatures() {
 	if !c.secure {
 		fmt.Fprintf(
 			c.conn,
 			"<?xml version='1.0'?><stream:stream id='%x' version='1.0' xml:lang='en' xmlns:stream='%s' from='localhost' xmlns='%s'>\n",
 			rng(),
-			NSStream,
-			NSClient,
+			nsStream,
+			nsClient,
 		)
 		fmt.Fprintf(
 			c.conn,
 			"<stream:features><starttls xmlns='%s'><required/></starttls></stream:features>\n",
-			NSTLS,
+			nsTLS,
 		)
 		return
 	}
@@ -102,24 +72,24 @@ func (c *Conn) sendFeatures() {
 		fmt.Fprintf(
 			c.conn,
 			"<stream:features><mechanisms xmlns='%s'><mechanism>ANONYMOUS</mechanism></mechanisms></stream:features>\n",
-			NSSASL,
+			nsSASL,
 		)
 		return
 	}
 	fmt.Fprintf(
 		c.conn,
 		"<stream:features><bind xmlns='%s'/></stream:features>\n",
-		NSBind,
+		nsBind,
 	)
 }
 
-func (c *Conn) starttls(tc *tls.Config) error {
+func (c *conn) starttls(tc *tls.Config) error {
 	se, _ := nextStart(c.p)
 	if se.Name.Local != "starttls" {
-		fmt.Fprintf(c.conn, "<failure xmlns='%s'/>\n", NSTLS)
+		fmt.Fprintf(c.conn, "<failure xmlns='%s'/>\n", nsTLS)
 		return errors.New("starttls failure")
 	}
-	fmt.Fprintf(c.conn, "<proceed xmlns='%s'/>\n", NSTLS)
+	fmt.Fprintf(c.conn, "<proceed xmlns='%s'/>\n", nsTLS)
 	conn := tls.Server(c.conn, tc)
 	conn.Handshake()
 	c.conn = conn
@@ -129,12 +99,12 @@ func (c *Conn) starttls(tc *tls.Config) error {
 	return nil
 }
 
-func (c *Conn) auth() error {
+func (c *conn) auth() error {
 	se, _ := nextStart(c.p)
 	for _, a := range se.Attr {
 		switch a.Value {
 		case "ANONYMOUS":
-			fmt.Fprintf(c.conn, "<success xmlns='%s'/>", NSSASL)
+			fmt.Fprintf(c.conn, "<success xmlns='%s'/>", nsSASL)
 			c.sasl = true
 			return nil
 		}
@@ -142,18 +112,18 @@ func (c *Conn) auth() error {
 	fmt.Fprintf(
 		c.conn,
 		"<failure xmlns='%s'><malformed-request/></failure>",
-		NSSASL,
+		nsSASL,
 	)
 	return errors.New("auth failure")
 }
 
-func (c *Conn) restart() error {
+func (c *conn) restart() error {
 	se, _ := nextStart(c.p)
 	if se.Name.Local != "stream" {
 		fmt.Fprintf(
 			c.conn,
 			"<stream:error><not-well-formed xmlns='%s'/></stream:error>\n",
-			NSStream,
+			nsStream,
 		)
 		return errors.New("restart failed")
 	}
@@ -161,13 +131,13 @@ func (c *Conn) restart() error {
 		c.conn,
 		"<?xml version='1.0'?><stream:stream id='%x' version='1.0' xml:lang='en' xmlns:stream='%s' from='localhost' xmlns='%s'>\n",
 		rng(),
-		NSStream,
-		NSClient,
+		nsStream,
+		nsClient,
 	)
 	return nil
 }
 
-func (c *Conn) bind() error {
+func (c *conn) bind() error {
 	var i iq
 	if err := c.p.DecodeElement(&i, nil); err != nil {
 		return errors.New("unmarshal <iq>: " + err.Error())
@@ -176,7 +146,7 @@ func (c *Conn) bind() error {
 		fmt.Fprintf(
 			c.conn,
 			"<stream:error><not-well-formed xmlns='%s'/></stream:error>\n",
-			NSStream,
+			nsStream,
 		)
 		return errors.New("<iq> result missing <bind>")
 	}
@@ -185,7 +155,7 @@ func (c *Conn) bind() error {
 		c.conn,
 		"<iq type='result' id='%x'><bind xmlns='%s'><jid>%s</jid></bind></iq>",
 		&i.ID,
-		NSBind,
+		nsBind,
 		c.jid,
 	)
 	return nil
@@ -211,4 +181,3 @@ func rng() uint64 {
 	}
 	return binary.LittleEndian.Uint64(buf[:])
 }
-

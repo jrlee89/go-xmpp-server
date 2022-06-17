@@ -2,21 +2,48 @@ package xmpp
 
 import (
 	"crypto/tls"
-	"encoding/xml"
 	"fmt"
 	"log"
 	"net"
 )
 
-type Server struct {
-	connections []*Conn
-	unregister  chan *Conn
-	tx          chan *Conn
-	register    chan *Conn
+type server struct {
+	connections []*conn
+	unregister  chan *conn
+	tx          chan *conn
+	register    chan *conn
 	tc          *tls.Config
 }
 
-func (s *Server) channels() {
+func NewServer(cert tls.Certificate) *server {
+	return &server{
+		unregister: make(chan *conn),
+		tx:         make(chan *conn),
+		register:   make(chan *conn),
+		tc:         &tls.Config{Certificates: []tls.Certificate{cert}},
+	}
+}
+
+func (s *server) Start() {
+	ln, err := net.Listen("tcp", ":5222")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer ln.Close()
+
+	go s.run()
+
+	for {
+		c, err := ln.Accept()
+		if err != nil {
+			log.Fatal(err)
+		}
+		go s.handler(c)
+	}
+
+}
+
+func (s *server) run() {
 	for {
 		select {
 		case message := <-s.tx:
@@ -29,11 +56,8 @@ func (s *Server) channels() {
 	}
 }
 
-func (s *Server) handleConn(conn net.Conn) {
-	c := &Conn{
-		conn: conn,
-		p:    xml.NewDecoder(conn),
-	}
+func (s *server) handler(conn net.Conn) {
+    c := newConn(conn)
 	for {
 		se, _ := nextStart(c.p)
 		switch se.Name.Local {
@@ -63,7 +87,7 @@ func (s *Server) handleConn(conn net.Conn) {
 	}
 }
 
-func (s *Server) send(c *Conn) {
+func (s *server) send(c *conn) {
 	switch t := c.msg.(type) {
 	case *message:
 		for i := range s.connections {
@@ -89,7 +113,7 @@ func (s *Server) send(c *Conn) {
 	}
 }
 
-func (s *Server) removeConn(c *Conn) {
+func (s *server) removeConn(c *conn) {
 	var i int
 	for i = range s.connections {
 		if s.connections[i].conn == c.conn {

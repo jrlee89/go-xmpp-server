@@ -7,11 +7,6 @@ import (
 
 func main() {
 	cert, _ := tls.LoadX509KeyPair("./lo.crt", "./lo.key")
-	s := &Server{
-		unregister: make(chan *Conn),
-		tx:         make(chan *Conn),
-		register:   make(chan *Conn),
-		tc:         &tls.Config{Certificates: []tls.Certificate{cert}},
-	}
+    s := NewServer(cert)
 	s.Run()
 }
