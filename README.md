@@ -8,6 +8,8 @@
 ```
 cd _example
 ./makeCert.sh
+go mod init example
+go mod tidy
 go run example.go
 ```
 
