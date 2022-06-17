@@ -7,6 +7,6 @@ import (
 
 func main() {
 	cert, _ := tls.LoadX509KeyPair("./lo.crt", "./lo.key")
-    s := NewServer(cert)
+    s := xmpp.NewServer(cert)
 	s.Run()
 }
