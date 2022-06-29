@@ -24,7 +24,7 @@ func NewServer(cert tls.Certificate) *server {
 	}
 }
 
-func (s *server) Start() {
+func (s *server) Serve() {
 	ln, err := net.Listen("tcp", ":5222")
 	if err != nil {
 		log.Fatal(err)
