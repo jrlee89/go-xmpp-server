@@ -1,7 +1,8 @@
 # go xmpp server
 - First attempt at writing a minimal xmpp server to learn golang.
-- A bit hodge podge.
+- Used https://github.com/shapeshed/golang-book-examples/blob/master/hour26/example05.go as a template
 - Provides only ANONYMOUS SASL, STARTTLS & Resource Binding Stream Features.
+- A bit hodge podge.
 - Runs on localhost only.
 
 ### Run example app
@@ -10,7 +11,7 @@ cd _example
 ./makeCert.sh
 go mod init example
 go mod tidy
-go run example.go
+go run main.go
 ```
 
 ### Test with xmpp client
