@@ -10,7 +10,7 @@
 ./makeCert.sh
 go mod init example
 go mod tidy
-go run main.go
+go run *.go
 ```
 
 ### Test with xmpp client
