@@ -124,3 +124,16 @@ func (s *server) removeConn(c *client) {
 	}
 	s.connections = append(s.connections[:i], s.connections[i+1:]...)
 }
+
+func nextStart(p *xml.Decoder) (xml.StartElement, error) {
+	for {
+		t, err := p.Token()
+		if err != nil || t == nil {
+			return xml.StartElement{}, err
+		}
+		switch t := t.(type) {
+		case xml.StartElement:
+			return t, nil
+		}
+	}
+}

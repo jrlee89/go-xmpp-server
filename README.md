@@ -1,15 +1,12 @@
 # go xmpp server
 - First attempt at writing a minimal xmpp server to learn golang.
 - Inspired by https://github.com/mattn/go-xmpp/
-- Provides only ANONYMOUS SASL, STARTTLS & Resource Binding Stream Features.
-- A bit hodge podge.
+- Provides only ANONYMOUS SASL, STARTTLS & Server-Generated Resource Binding Stream Features.
 - Runs on localhost only.
 
 ### Run the server
 ```
 ./makeCert.sh
-go mod init example
-go mod tidy
 go run *.go
 ```
 

@@ -117,15 +117,3 @@ func (c *client) bind(se xml.StartElement) error {
 	return nil
 }
 
-func nextStart(p *xml.Decoder) (xml.StartElement, error) {
-	for {
-		t, err := p.Token()
-		if err != nil || t == nil {
-			return xml.StartElement{}, err
-		}
-		switch t := t.(type) {
-		case xml.StartElement:
-			return t, nil
-		}
-	}
-}
