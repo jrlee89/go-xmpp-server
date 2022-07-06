@@ -1,4 +1,4 @@
-package xmpp
+package main
 
 import "encoding/xml"
 
@@ -17,7 +17,11 @@ type iq struct {
 	XMLName xml.Name `xml:"jabber:client iq"`
 	ID      string   `xml:"id,attr"`
 	Type    string   `xml:"type,attr"`
-	Bind    xml.Name `xml:"urn:ietf:params:xml:ns:xmpp-bind bind"`
+	Bind    bindBind
+}
+
+type bindBind struct {
+	XMLName xml.Name `xml:"urn:ietf:params:xml:ns:xmpp-bind bind"`
 }
 
 type presence struct {
