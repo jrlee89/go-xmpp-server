@@ -52,16 +52,19 @@ func (s *server) run() {
 	}
 }
 
+func (s *server) streamError(c *client) {
+	fmt.Fprintf(c.conn, "</stream:stream>\n")
+	c.conn.Close()
+	s.errLog.Printf("stream error")
+}
+
 func (s *server) serve(conn net.Conn) {
 	c := &client{conn: conn, p: xml.NewDecoder(conn)}
 
 	defer func() {
-		fmt.Fprintf(c.conn, "</stream:stream>\n")
-		c.conn.Close()
-		s.errLog.Printf("stream error")
-        if c.jid != "" {
-            s.unregister <- c
-        }
+		if c.jid != "" {
+			s.unregister <- c
+		}
 	}()
 
 	for {
@@ -69,21 +72,25 @@ func (s *server) serve(conn net.Conn) {
 		switch se.Name.Local {
 		case "stream":
 			if err := s.sendFeatures(c); err != nil {
+                s.streamError(c)
 				return
 			}
 			break
 		case "starttls":
 			if err := s.starttls(c); err != nil {
+                s.streamError(c)
 				return
 			}
 			break
 		case "auth":
 			if !s.auth(c, se) {
+                s.streamError(c)
 				return
 			}
 			break
 		case "iq":
 			if !s.bind(c, se) {
+                s.streamError(c)
 				return
 			}
 			s.register <- c
