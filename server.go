@@ -4,16 +4,20 @@ import (
 	"crypto/tls"
 	"encoding/xml"
 	"fmt"
+	"io"
 	"log"
 	"net"
 )
 
 type server struct {
+	hostname    string
 	connections []*client
 	transmit    chan *client
 	register    chan *client
 	unregister  chan *client
 	tc          *tls.Config
+	msgLog      io.Writer
+	errLog      *log.Logger
 }
 
 func (s *server) listen() {
@@ -28,7 +32,7 @@ func (s *server) listen() {
 	for {
 		c, err := ln.Accept()
 		if err != nil {
-			log.Fatal(err)
+			s.errLog.Printf("%s", err.Error())
 		}
 		go s.serve(c)
 	}
@@ -54,37 +58,53 @@ func (s *server) serve(conn net.Conn) {
 	defer func() {
 		fmt.Fprintf(c.conn, "</stream:stream>\n")
 		c.conn.Close()
-		s.unregister <- c
+		s.errLog.Printf("stream error")
+        if c.jid != "" {
+            s.unregister <- c
+        }
 	}()
 
 	for {
 		se, _ := nextStart(c.p)
 		switch se.Name.Local {
 		case "stream":
-			c.sendFeatures()
+			if err := s.sendFeatures(c); err != nil {
+				return
+			}
 			break
 		case "starttls":
-			c.starttls(s.tc)
+			if err := s.starttls(c); err != nil {
+				return
+			}
 			break
 		case "auth":
-			c.auth(se)
+			if !s.auth(c, se) {
+				return
+			}
 			break
 		case "iq":
-			c.bind(se)
+			if !s.bind(c, se) {
+				return
+			}
 			s.register <- c
 			break
 		case "presence":
-			c.msg = &presence{}
-			s.transmit <- c
+			if c.jid != "" {
+				c.msg = &presence{}
+				s.transmit <- c
+			}
 			break
 		case "message":
-			c.msg = &message{}
-			if err := c.p.DecodeElement(c.msg, &se); err != nil {
-				log.Printf("stream error: %s", err.Error())
-				return
+			if c.jid != "" {
+				c.msg = &message{}
+				if err := c.p.DecodeElement(c.msg, &se); err != nil {
+					s.errLog.Printf("%s", err.Error())
+					return
+				}
+				s.transmit <- c
 			}
-			s.transmit <- c
 			break
+			// TODO: add default
 		}
 	}
 }
